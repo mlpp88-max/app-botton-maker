@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Coolprints Interactive Button Maker</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: 'Segoe UI', Poppins, Montserrat, sans-serif;
+            background: #F5F5F7;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        /* ── Top bar ── */
+        #top-bar {
+            background: white;
+            border-bottom: 1px solid #E0E0E0;
+            height: 80px;
+            display: flex;
+            align-items: center;
+            padding: 0 30px;
+            gap: 20px;
+            flex-shrink: 0;
+        }
+        #brand      { font-size: 14px; font-weight: bold; color: #F7A5C9; }
+        #app-title  { font-size: 18px; font-weight: bold; color: #333; }
+        .spacer     { flex: 1; }
+
+        .btn-primary {
+            background: #F7A5C9;
+            color: white;
+            border: none;
+            border-radius: 18px;
+            height: 40px;
+            padding: 0 25px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            white-space: nowrap;
+            font-family: inherit;
+        }
+        .btn-primary:hover            { background: #F58FB5; }
+        .btn-primary:disabled         { background: #CCC; color: #888; cursor: default; }
+
+        /* ── Main layout ── */
+        #main-content {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+
+        /* ── Left panel ── */
+        #left-panel {
+            flex: 3;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            gap: 15px;
+            overflow: hidden;
+            min-width: 0;
+        }
+
+        #toolbar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: #333;
+            border: 2px solid #D5C5FF;
+            border-radius: 10px;
+            height: 36px;
+            padding: 0 20px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-secondary:hover:not(:disabled) { background: #D5C5FF; }
+        .btn-secondary:disabled             { background: #F0F0F0; color: #AAA; border-color: #E0E0E0; cursor: default; }
+        .btn-secondary.active               { background: #F7A5C9; color: white; border-color: #F7A5C9; }
+
+        .btn-icon {
+            background: white;
+            color: #333;
+            border: 2px solid #D5C5FF;
+            border-radius: 10px;
+            width: 36px;
+            height: 36px;
+            font-size: 16px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: inherit;
+        }
+        .btn-icon:hover:not(:disabled) { background: #D5C5FF; }
+        .btn-icon:disabled             { background: #F0F0F0; color: #AAA; border-color: #E0E0E0; cursor: default; }
+
+        #zoom-label {
+            font-size: 11px;
+            font-weight: bold;
+            color: #333;
+            width: 50px;
+            text-align: center;
+        }
+
+        /* ── Viewer ── */
+        #viewer-wrapper {
+            flex: 1;
+            overflow: auto;
+            background: #E8E8EC;
+            border-radius: 12px;
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        #drop-zone {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            color: #999;
+            text-align: center;
+            width: 100%;
+            height: 100%;
+            min-height: 300px;
+            border: 2px dashed #D5C5FF;
+            border-radius: 12px;
+            transition: background 0.15s;
+        }
+        #drop-zone.dragover { background: rgba(213,197,255,0.15); }
+        .drop-icon { font-size: 60px; }
+        #drop-zone p     { font-size: 14px; }
+        #drop-zone small { font-size: 11px; color: #BBB; }
+
+        #canvas-container {
+            position: relative;
+            display: none;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+        }
+        #render-canvas { display: block; }
+        #overlay-canvas {
+            position: absolute;
+            top: 0; left: 0;
+            cursor: default;
+        }
+
+        /* ── Nav bar ── */
+        #nav-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            flex-shrink: 0;
+        }
+        #page-label {
+            font-size: 11px;
+            font-weight: bold;
+            color: #333;
+            background: white;
+            border-radius: 8px;
+            padding: 8px 15px;
+            min-width: 130px;
+            text-align: center;
+        }
+
+        /* ── Right panel ── */
+        #right-panel {
+            width: 380px;
+            min-width: 350px;
+            max-width: 450px;
+            background: white;
+            border-left: 1px solid #E0E0E0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+        #panel-header {
+            padding: 20px;
+            border-bottom: 1px solid #E0E0E0;
+            flex-shrink: 0;
+        }
+        #panel-title    { font-size: 16px; font-weight: bold; color: #333; }
+        #panel-subtitle { font-size: 10px; color: #666; margin-top: 5px; }
+
+        #button-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        #empty-state {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 40px 20px;
+            color: #999;
+            font-size: 12px;
+            text-align: center;
+            gap: 10px;
+        }
+        .empty-icon { font-size: 40px; }
+
+        /* ── Button card ── */
+        .button-card {
+            background: white;
+            border: 1px solid #E0E0E0;
+            border-radius: 12px;
+            overflow: hidden;
+            cursor: pointer;
+            transition: border-color 0.15s;
+            flex-shrink: 0;
+        }
+        .button-card:hover    { border-color: #D5C5FF; }
+        .button-card.selected { border: 2px solid #F7A5C9; }
+
+        .button-card-inner { display: flex; }
+        .card-indicator {
+            width: 6px;
+            background: #D5C5FF;
+            flex-shrink: 0;
+        }
+        .card-content { padding: 12px 15px; flex: 1; min-width: 0; }
+        .card-name {
+            font-size: 12px;
+            font-weight: bold;
+            color: #333;
+            word-break: break-word;
+        }
+        .card-info {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 8px;
+        }
+        .card-page-chip {
+            background: #D5C5FF;
+            color: #333;
+            padding: 4px 10px;
+            border-radius: 10px;
+            font-size: 9px;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+        .card-url {
+            font-size: 10px;
+            color: #666;
+            margin-top: 6px;
+            word-break: break-all;
+        }
+        .card-actions {
+            display: flex;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .btn-edit {
+            background: #B6E3D8;
+            color: #333;
+            border: none;
+            border-radius: 8px;
+            height: 28px;
+            padding: 0 12px;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-edit:hover { background: #A0D3C8; }
+
+        .btn-delete {
+            background: #FFE0E0;
+            color: #D32F2F;
+            border: none;
+            border-radius: 8px;
+            height: 28px;
+            padding: 0 12px;
+            font-size: 10px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-delete:hover { background: #FFCCCC; }
+
+        /* ── Modal ── */
+        #modal-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        #modal-overlay.show { display: flex; }
+
+        #modal {
+            background: #F5F5F7;
+            border-radius: 16px;
+            padding: 30px;
+            width: 450px;
+            max-width: 90vw;
+        }
+        #modal h2 {
+            font-size: 18px;
+            font-weight: bold;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .form-label {
+            display: block;
+            font-size: 11px;
+            color: #333;
+            margin-bottom: 6px;
+        }
+        .form-input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #D5C5FF;
+            border-radius: 8px;
+            font-size: 11px;
+            font-family: inherit;
+            margin-bottom: 15px;
+            outline: none;
+            background: white;
+        }
+        .form-input:focus { border-color: #F7A5C9; }
+        .form-note {
+            font-size: 10px;
+            color: #666;
+            margin-top: -10px;
+            margin-bottom: 20px;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+        .btn-cancel {
+            background: white;
+            color: #333;
+            border: 2px solid #D5C5FF;
+            border-radius: 12px;
+            height: 40px;
+            padding: 0 20px;
+            font-size: 11px;
+            font-weight: bold;
+            cursor: pointer;
+            font-family: inherit;
+        }
+        .btn-cancel:hover { background: #D5C5FF; }
+
+        /* ── Loading ── */
+        #loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(255,255,255,0.85);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 15px;
+        }
+        #loading-overlay.show { display: flex; }
+        .spinner {
+            width: 44px;
+            height: 44px;
+            border: 4px solid #E0E0E0;
+            border-top-color: #F7A5C9;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        #loading-text { color: #666; font-size: 14px; }
+    </style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div id="top-bar">
+    <div>
+        <div id="brand">Coolprints</div>
+        <div id="app-title">Interactive Button Maker</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="btn-primary" onclick="openFile()">📂 Abrir Archivo</button>
+    <button class="btn-primary" id="save-btn" onclick="savePDF()" disabled>💾 Guardar PDF Interactivo</button>
+    <input type="file" id="file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none" onchange="handleFileInput(event)">
+</div>
+
+<!-- Main content -->
+<div id="main-content">
+
+    <!-- Left panel -->
+    <div id="left-panel">
+        <div id="toolbar">
+            <button class="btn-secondary" id="draw-btn" onclick="toggleDrawMode()" disabled>✏️ Agregar Botón</button>
+            <div class="spacer"></div>
+            <span style="font-size:11px;color:#333;">Zoom:</span>
+            <button class="btn-icon" id="zoom-out-btn" onclick="zoomOut()" disabled>➖</button>
+            <span id="zoom-label">100%</span>
+            <button class="btn-icon" id="zoom-in-btn" onclick="zoomIn()" disabled>➕</button>
+        </div>
+
+        <div id="viewer-wrapper">
+            <div id="drop-zone">
+                <span class="drop-icon">📄</span>
+                <p>Arrastra tu archivo aquí o usa <strong>Abrir Archivo</strong></p>
+                <small>Soporta PDF, JPEG y PNG</small>
+            </div>
+            <div id="canvas-container">
+                <canvas id="render-canvas"></canvas>
+                <canvas id="overlay-canvas"></canvas>
+            </div>
+        </div>
+
+        <div id="nav-bar">
+            <button class="btn-secondary" id="prev-btn" onclick="prevPage()" disabled>◀ Anterior</button>
+            <span id="page-label">Página 0 de 0</span>
+            <button class="btn-secondary" id="next-btn" onclick="nextPage()" disabled>Siguiente ▶</button>
+        </div>
+    </div>
+
+    <!-- Right panel -->
+    <div id="right-panel">
+        <div id="panel-header">
+            <div id="panel-title">Botones Interactivos</div>
+            <div id="panel-subtitle">Lista de enlaces configurados</div>
+        </div>
+        <div id="button-list">
+            <div id="empty-state">
+                <span class="empty-icon">🔗</span>
+                <p>No hay botones configurados</p>
+                <small>Abre un archivo y usa "Agregar Botón" para crear enlaces interactivos</small>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- Modal de configuración -->
+<div id="modal-overlay">
+    <div id="modal">
+        <h2>Configurar Botón Interactivo</h2>
+        <label class="form-label">Nombre del botón:</label>
+        <input type="text" class="form-input" id="modal-name" placeholder="Ej: Confirmar asistencia">
+        <label class="form-label">URL del enlace:</label>
+        <input type="text" class="form-input" id="modal-url" placeholder="Ej: https://ejemplo.com o mailto:info@ejemplo.com">
+        <p class="form-note">💡 Puedes usar http://, https://, mailto:, tel:, etc.</p>
+        <div class="modal-actions">
+            <button class="btn-cancel" onclick="closeModal()">Cancelar</button>
+            <button class="btn-primary" onclick="saveModal()">Guardar</button>
+        </div>
+    </div>
+</div>
+
+<!-- Loading overlay -->
+<div id="loading-overlay">
+    <div class="spinner"></div>
+    <p id="loading-text">Procesando...</p>
+</div>
+
+<script>
+'use strict';
+
+// ─── PDF.js worker ────────────────────────────────────────────────────────────
+pdfjsLib.GlobalWorkerOptions.workerSrc =
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ─── State ───────────────────────────────────────────────────────────────────
+const state = {
+    fileBytes:    null,   // ArrayBuffer of original file
+    fileType:     null,   // 'pdf' | 'jpeg' | 'png'
+    pdfJsDoc:     null,   // PDF.js document
+    imageObj:     null,   // HTMLImageElement (for images)
+    currentPage:  0,      // 0-indexed
+    totalPages:   0,
+    pageWidth:    0,      // current page width in doc units (pts or px at scale 1)
+    pageHeight:   0,      // current page height
+    zoom:         1.0,
+    // buttons: [{name, url, page, x0, y0, x1, y1}] — doc coords, top-left origin
+    buttons:      [],
+    selectedIdx:  null,
+    drawMode:     false,
+    isDrawing:    false,
+    drawStart:    null,   // {x, y} canvas pixels
+    pendingRect:  null,   // {x0,y0,x1,y1} doc coords awaiting modal
+    editingIdx:   null,   // index being edited in modal
+};
+
+// ─── DOM refs ─────────────────────────────────────────────────────────────────
+const renderCanvas  = document.getElementById('render-canvas');
+const overlayCanvas = document.getElementById('overlay-canvas');
+const renderCtx     = renderCanvas.getContext('2d');
+const overlayCtx    = overlayCanvas.getContext('2d');
+
+// ─── Drag & drop ─────────────────────────────────────────────────────────────
+const viewerWrapper = document.getElementById('viewer-wrapper');
+const dropZone      = document.getElementById('drop-zone');
+
+viewerWrapper.addEventListener('dragover', e => {
+    e.preventDefault();
+    dropZone.classList.add('dragover');
+});
+viewerWrapper.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+viewerWrapper.addEventListener('drop', e => {
+    e.preventDefault();
+    dropZone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+});
+
+// ─── File opening ─────────────────────────────────────────────────────────────
+function openFile() {
+    document.getElementById('file-input').click();
+}
+
+function handleFileInput(event) {
+    const file = event.target.files[0];
+    if (file) handleFile(file);
+    event.target.value = '';
+}
+
+async function handleFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (!['pdf', 'jpg', 'jpeg', 'png'].includes(ext)) {
+        alert('Formato no soportado. Usa PDF, JPEG o PNG.');
+        return;
+    }
+
+    showLoading(true, 'Cargando archivo...');
+    try {
+        const bytes = await file.arrayBuffer();
+        state.fileBytes   = bytes;
+        state.buttons     = [];
+        state.selectedIdx = null;
+        state.currentPage = 0;
+        state.zoom        = 1.0;
+        document.getElementById('zoom-label').textContent = '100%';
+
+        if (ext === 'pdf') {
+            state.fileType = 'pdf';
+            await loadPDF(bytes);
+        } else {
+            state.fileType = (ext === 'png') ? 'png' : 'jpeg';
+            await loadImage(file);
+        }
+
+        // Switch view
+        dropZone.style.display = 'none';
+        document.getElementById('canvas-container').style.display = 'inline-block';
+
+        enableControls(true);
+        await renderPage();
+        updatePageLabel();
+        updateButtonList();
+
+        const typeLabel = (state.fileType === 'pdf') ? 'PDF' : 'Imagen';
+        let msg = `${typeLabel} cargado correctamente.\nPáginas: ${state.totalPages}`;
+        if (state.fileType !== 'pdf') {
+            msg += '\n\nNota: Al guardar se creará un PDF de alta calidad con los enlaces interactivos.';
+        }
+        alert(msg);
+    } catch (err) {
+        console.error(err);
+        alert('No se pudo abrir el archivo: ' + err.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function loadPDF(bytes) {
+    state.pdfJsDoc   = await pdfjsLib.getDocument({ data: bytes.slice(0) }).promise;
+    state.totalPages = state.pdfJsDoc.numPages;
+    await updatePageDimensions();
+}
+
+async function updatePageDimensions() {
+    if (state.fileType === 'pdf') {
+        const page = await state.pdfJsDoc.getPage(state.currentPage + 1);
+        const vp   = page.getViewport({ scale: 1 });
+        state.pageWidth  = vp.width;
+        state.pageHeight = vp.height;
+    } else {
+        state.pageWidth  = state.imageObj.naturalWidth;
+        state.pageHeight = state.imageObj.naturalHeight;
+    }
+}
+
+function loadImage(file) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+            state.imageObj   = img;
+            state.totalPages = 1;
+            state.pageWidth  = img.naturalWidth;
+            state.pageHeight = img.naturalHeight;
+            URL.revokeObjectURL(url);
+            resolve();
+        };
+        img.onerror = reject;
+        img.src = url;
+    });
+}
+
+// ─── Rendering ────────────────────────────────────────────────────────────────
+async function renderPage() {
+    await updatePageDimensions();
+
+    if (state.fileType === 'pdf') {
+        const page     = await state.pdfJsDoc.getPage(state.currentPage + 1);
+        const viewport = page.getViewport({ scale: state.zoom });
+
+        renderCanvas.width  = overlayCanvas.width  = Math.round(viewport.width);
+        renderCanvas.height = overlayCanvas.height = Math.round(viewport.height);
+
+        await page.render({ canvasContext: renderCtx, viewport }).promise;
+    } else {
+        const w = Math.round(state.pageWidth  * state.zoom);
+        const h = Math.round(state.pageHeight * state.zoom);
+
+        renderCanvas.width  = overlayCanvas.width  = w;
+        renderCanvas.height = overlayCanvas.height = h;
+
+        renderCtx.clearRect(0, 0, w, h);
+        renderCtx.drawImage(state.imageObj, 0, 0, w, h);
+    }
+
+    drawOverlay();
+}
+
+function drawOverlay() {
+    const w = overlayCanvas.width;
+    const h = overlayCanvas.height;
+    overlayCtx.clearRect(0, 0, w, h);
+
+    for (let i = 0; i < state.buttons.length; i++) {
+        const btn = state.buttons[i];
+        if (btn.page !== state.currentPage) continue;
+
+        const cx0 = btn.x0 * state.zoom;
+        const cy0 = btn.y0 * state.zoom;
+        const cw  = (btn.x1 - btn.x0) * state.zoom;
+        const ch  = (btn.y1 - btn.y0) * state.zoom;
+        const sel = (i === state.selectedIdx);
+
+        overlayCtx.fillStyle   = sel ? 'rgba(247,165,201,0.35)' : 'rgba(247,165,201,0.18)';
+        overlayCtx.fillRect(cx0, cy0, cw, ch);
+
+        overlayCtx.strokeStyle = '#F7A5C9';
+        overlayCtx.lineWidth   = sel ? 3 : 2;
+        overlayCtx.setLineDash([]);
+        overlayCtx.strokeRect(cx0, cy0, cw, ch);
+
+        // Label inside rect
+        const fontSize = Math.max(10, Math.min(13, ch * 0.45));
+        overlayCtx.font      = `bold ${fontSize}px Segoe UI, sans-serif`;
+        overlayCtx.fillStyle = '#E8598A';
+        const label = btn.name.length > 22 ? btn.name.slice(0, 19) + '…' : btn.name;
+        overlayCtx.fillText(label, cx0 + 5, cy0 + fontSize + 3);
+    }
+}
+
+// ─── Mouse drawing ────────────────────────────────────────────────────────────
+overlayCanvas.addEventListener('mousedown', e => {
+    if (!state.drawMode) return;
+    state.isDrawing = true;
+    state.drawStart = getCanvasPos(e);
+});
+
+overlayCanvas.addEventListener('mousemove', e => {
+    if (!state.isDrawing) return;
+    const pos = getCanvasPos(e);
+    drawOverlay();
+
+    const x = Math.min(state.drawStart.x, pos.x);
+    const y = Math.min(state.drawStart.y, pos.y);
+    const w = Math.abs(pos.x - state.drawStart.x);
+    const h = Math.abs(pos.y - state.drawStart.y);
+
+    overlayCtx.fillStyle   = 'rgba(247,165,201,0.18)';
+    overlayCtx.fillRect(x, y, w, h);
+    overlayCtx.strokeStyle = '#F7A5C9';
+    overlayCtx.lineWidth   = 2;
+    overlayCtx.setLineDash([7, 4]);
+    overlayCtx.strokeRect(x, y, w, h);
+    overlayCtx.setLineDash([]);
+});
+
+overlayCanvas.addEventListener('mouseup', e => {
+    if (!state.isDrawing) return;
+    state.isDrawing = false;
+    const pos = getCanvasPos(e);
+
+    const dx = Math.abs(pos.x - state.drawStart.x);
+    const dy = Math.abs(pos.y - state.drawStart.y);
+    if (dx < 10 || dy < 10) { drawOverlay(); return; }
+
+    // Store in doc coords (divide by zoom)
+    state.pendingRect = {
+        x0: Math.min(state.drawStart.x, pos.x) / state.zoom,
+        y0: Math.min(state.drawStart.y, pos.y) / state.zoom,
+        x1: Math.max(state.drawStart.x, pos.x) / state.zoom,
+        y1: Math.max(state.drawStart.y, pos.y) / state.zoom,
+    };
+    state.editingIdx = null;
+    openModal('', '');
+});
+
+function getCanvasPos(e) {
+    const rect = overlayCanvas.getBoundingClientRect();
+    return {
+        x: (e.clientX - rect.left) * (overlayCanvas.width  / rect.width),
+        y: (e.clientY - rect.top)  * (overlayCanvas.height / rect.height),
+    };
+}
+
+// ─── Draw mode ────────────────────────────────────────────────────────────────
+function toggleDrawMode() {
+    state.drawMode = !state.drawMode;
+    const btn = document.getElementById('draw-btn');
+    if (state.drawMode) {
+        btn.classList.add('active');
+        btn.textContent = '✏️ Dibujando...';
+        overlayCanvas.style.cursor = 'crosshair';
+    } else {
+        btn.classList.remove('active');
+        btn.textContent = '✏️ Agregar Botón';
+        overlayCanvas.style.cursor = 'default';
+    }
+}
+
+function deactivateDrawMode() {
+    if (!state.drawMode) return;
+    state.drawMode = false;
+    document.getElementById('draw-btn').classList.remove('active');
+    document.getElementById('draw-btn').textContent = '✏️ Agregar Botón';
+    overlayCanvas.style.cursor = 'default';
+}
+
+// ─── Modal ────────────────────────────────────────────────────────────────────
+function openModal(name, url) {
+    document.getElementById('modal-name').value = name;
+    document.getElementById('modal-url').value  = url;
+    document.getElementById('modal-overlay').classList.add('show');
+    setTimeout(() => document.getElementById('modal-name').focus(), 50);
+}
+
+function closeModal() {
+    document.getElementById('modal-overlay').classList.remove('show');
+    state.pendingRect = null;
+    state.editingIdx  = null;
+    drawOverlay();
+}
+
+function saveModal() {
+    const name = document.getElementById('modal-name').value.trim();
+    const url  = document.getElementById('modal-url').value.trim();
+
+    if (!name) {
+        alert('Por favor ingresa un nombre para el botón.');
+        document.getElementById('modal-name').focus();
+        return;
+    }
+    if (!url) {
+        alert('Por favor ingresa una URL para el enlace.');
+        document.getElementById('modal-url').focus();
+        return;
+    }
+    const validPrefixes = ['http://', 'https://', 'mailto:', 'tel:', 'ftp://', 'file://'];
+    if (!validPrefixes.some(p => url.startsWith(p))) {
+        alert('La URL debe comenzar con http://, https://, mailto:, tel:, etc.');
+        document.getElementById('modal-url').focus();
+        return;
+    }
+
+    document.getElementById('modal-overlay').classList.remove('show');
+
+    if (state.editingIdx !== null) {
+        state.buttons[state.editingIdx].name = name;
+        state.buttons[state.editingIdx].url  = url;
+    } else {
+        state.buttons.push({
+            name, url,
+            page: state.currentPage,
+            x0: state.pendingRect.x0,
+            y0: state.pendingRect.y0,
+            x1: state.pendingRect.x1,
+            y1: state.pendingRect.y1,
+        });
+    }
+
+    state.pendingRect = null;
+    state.editingIdx  = null;
+
+    deactivateDrawMode();
+    document.getElementById('save-btn').disabled = false;
+    drawOverlay();
+    updateButtonList();
+}
+
+// ─── Button list panel ───────────────────────────────────────────────────────
+function updateButtonList() {
+    const list = document.getElementById('button-list');
+    list.innerHTML = '';
+
+    if (state.buttons.length === 0) {
+        list.innerHTML = `<div id="empty-state">
+            <span class="empty-icon">🔗</span>
+            <p>No hay botones configurados</p>
+            <small>Abre un archivo y usa "Agregar Botón" para crear enlaces interactivos</small>
+        </div>`;
+        return;
+    }
+
+    state.buttons.forEach((btn, idx) => {
+        const card = document.createElement('div');
+        card.className = 'button-card' + (idx === state.selectedIdx ? ' selected' : '');
+
+        const urlDisplay = btn.url.length > 42 ? btn.url.slice(0, 39) + '…' : btn.url;
+        card.innerHTML = `
+            <div class="button-card-inner">
+                <div class="card-indicator"></div>
+                <div class="card-content">
+                    <div class="card-name">${esc(btn.name)}</div>
+                    <div class="card-info">
+                        <span class="card-page-chip">Página ${btn.page + 1}</span>
+                    </div>
+                    <div class="card-url">${esc(urlDisplay)}</div>
+                    <div class="card-actions">
+                        <button class="btn-edit"   onclick="editButton(${idx}); event.stopPropagation();">✏️ Editar</button>
+                        <button class="btn-delete" onclick="deleteButton(${idx}); event.stopPropagation();">🗑️ Eliminar</button>
+                    </div>
+                </div>
+            </div>`;
+        card.addEventListener('click', () => selectButton(idx));
+        list.appendChild(card);
+    });
+}
+
+function esc(text) {
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+}
+
+function selectButton(idx) {
+    state.selectedIdx = idx;
+    const btn = state.buttons[idx];
+    if (btn.page !== state.currentPage) {
+        state.currentPage = btn.page;
+        renderPage().then(() => { updatePageLabel(); updateButtonList(); });
+    } else {
+        drawOverlay();
+        updateButtonList();
+    }
+}
+
+function editButton(idx) {
+    state.editingIdx  = idx;
+    state.pendingRect = null;
+    openModal(state.buttons[idx].name, state.buttons[idx].url);
+}
+
+function deleteButton(idx) {
+    if (!confirm('¿Estás seguro de que deseas eliminar este botón?')) return;
+    state.buttons.splice(idx, 1);
+    if (state.selectedIdx === idx)         state.selectedIdx = null;
+    else if (state.selectedIdx > idx)      state.selectedIdx--;
+    if (state.buttons.length === 0) document.getElementById('save-btn').disabled = true;
+    drawOverlay();
+    updateButtonList();
+}
+
+// ─── Zoom ─────────────────────────────────────────────────────────────────────
+async function zoomIn() {
+    state.zoom = Math.min(3.0, parseFloat((state.zoom + 0.2).toFixed(1)));
+    document.getElementById('zoom-label').textContent = Math.round(state.zoom * 100) + '%';
+    await renderPage();
+}
+
+async function zoomOut() {
+    state.zoom = Math.max(0.5, parseFloat((state.zoom - 0.2).toFixed(1)));
+    document.getElementById('zoom-label').textContent = Math.round(state.zoom * 100) + '%';
+    await renderPage();
+}
+
+// ─── Navigation ───────────────────────────────────────────────────────────────
+async function prevPage() {
+    if (state.currentPage > 0) {
+        state.currentPage--;
+        await renderPage();
+        updatePageLabel();
+    }
+}
+
+async function nextPage() {
+    if (state.currentPage < state.totalPages - 1) {
+        state.currentPage++;
+        await renderPage();
+        updatePageLabel();
+    }
+}
+
+function updatePageLabel() {
+    document.getElementById('page-label').textContent =
+        `Página ${state.currentPage + 1} de ${state.totalPages}`;
+    document.getElementById('prev-btn').disabled = (state.currentPage === 0);
+    document.getElementById('next-btn').disabled = (state.currentPage === state.totalPages - 1);
+}
+
+function enableControls(on) {
+    document.getElementById('draw-btn').disabled     = !on;
+    document.getElementById('zoom-in-btn').disabled  = !on;
+    document.getElementById('zoom-out-btn').disabled = !on;
+    updatePageLabel();
+}
+
+// ─── Save PDF ─────────────────────────────────────────────────────────────────
+async function savePDF() {
+    if (state.buttons.length === 0) {
+        alert('No hay botones configurados para guardar.');
+        return;
+    }
+
+    showLoading(true, 'Generando PDF interactivo...');
+    try {
+        const pdfBytes = (state.fileType === 'pdf')
+            ? await buildPDFFromPDF()
+            : await buildPDFFromImage();
+
+        downloadBlob(pdfBytes, 'interactive_buttons.pdf');
+
+        alert(`PDF interactivo guardado correctamente.\nEnlaces incluidos: ${state.buttons.length} botón(es).`);
+    } catch (err) {
+        console.error(err);
+        alert('No se pudo guardar el PDF: ' + err.message);
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function buildPDFFromPDF() {
+    const { PDFDocument } = PDFLib;
+    const pdfDoc = await PDFDocument.load(state.fileBytes);
+    const pages  = pdfDoc.getPages();
+
+    for (const btn of state.buttons) {
+        const page            = pages[btn.page];
+        const { width, height } = page.getSize();
+
+        // btn coords are in PDF.js scale-1 units = PDF points, top-left origin.
+        // pdf-lib uses bottom-left origin → flip Y.
+        const r = {
+            x0: btn.x0,
+            y0: height - btn.y1,   // bottom edge in PDF coords
+            x1: btn.x1,
+            y1: height - btn.y0,   // top    edge in PDF coords
+        };
+        addURIAnnotation(pdfDoc, page, r, btn.url);
+    }
+
+    return await pdfDoc.save();
+}
+
+async function buildPDFFromImage() {
+    const { PDFDocument } = PDFLib;
+    const pdfDoc = await PDFDocument.create();
+
+    let embeddedImg;
+    if (state.fileType === 'jpeg') {
+        embeddedImg = await pdfDoc.embedJpg(state.fileBytes);
+    } else {
+        embeddedImg = await pdfDoc.embedPng(state.fileBytes);
+    }
+
+    const { width, height } = embeddedImg;
+    const page = pdfDoc.addPage([width, height]);
+    page.drawImage(embeddedImg, { x: 0, y: 0, width, height });
+
+    for (const btn of state.buttons) {
+        // btn coords in image-pixel space = PDF-point space (1 px = 1 pt),
+        // top-left origin → flip Y.
+        const r = {
+            x0: btn.x0,
+            y0: height - btn.y1,
+            x1: btn.x1,
+            y1: height - btn.y0,
+        };
+        addURIAnnotation(pdfDoc, page, r, btn.url);
+    }
+
+    return await pdfDoc.save();
+}
+
+function addURIAnnotation(pdfDoc, page, r, url) {
+    const { PDFName, PDFString, PDFArray } = PDFLib;
+
+    const uriAction = pdfDoc.context.obj({
+        Type: PDFName.of('Action'),
+        S:    PDFName.of('URI'),
+        URI:  PDFString.of(url),
+    });
+
+    const annot = pdfDoc.context.obj({
+        Type:    PDFName.of('Annot'),
+        Subtype: PDFName.of('Link'),
+        Rect:    [r.x0, r.y0, r.x1, r.y1],
+        Border:  [0, 0, 0],
+        A:       uriAction,
+    });
+
+    const annotRef = pdfDoc.context.register(annot);
+    const existing = page.node.get(PDFName.of('Annots'));
+
+    if (existing instanceof PDFArray) {
+        existing.push(annotRef);
+    } else {
+        page.node.set(PDFName.of('Annots'), pdfDoc.context.obj([annotRef]));
+    }
+}
+
+// ─── Utilities ────────────────────────────────────────────────────────────────
+function downloadBlob(bytes, filename) {
+    const blob = new Blob([bytes], { type: 'application/pdf' });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+}
+
+function showLoading(visible, text = 'Procesando...') {
+    document.getElementById('loading-text').textContent = text;
+    document.getElementById('loading-overlay').classList.toggle('show', visible);
+}
+
+// ─── Keyboard shortcuts ───────────────────────────────────────────────────────
+document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+        if (document.getElementById('modal-overlay').classList.contains('show')) {
+            closeModal();
+        } else {
+            deactivateDrawMode();
+        }
+    }
+    if ((e.ctrlKey || e.metaKey) && e.key === 'o') {
+        e.preventDefault();
+        openFile();
+    }
+});
+
+// ─── Enter on modal inputs ────────────────────────────────────────────────────
+document.getElementById('modal-name').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('modal-url').focus(); });
+document.getElementById('modal-url' ).addEventListener('keydown', e => { if (e.key === 'Enter') saveModal(); });
+</script>
+</body>
+</html>
